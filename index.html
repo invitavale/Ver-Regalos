@@ -123,6 +123,7 @@ ul{list-style:none;margin:0;padding:0}
 .err{color:#a5483f;font-size:.85rem;margin:0}
 .thanks{text-align:center}
 .thanks img{width:120px;margin:0 auto}
+.love{font-family:var(--f-display);font-style:italic;font-size:1.2rem;line-height:1.45;color:var(--ink);margin:0 auto;max-width:32ch;text-wrap:balance}
 
 /* Host view */
 .host .cat header{padding-right:0}
@@ -157,6 +158,9 @@ ul{list-style:none;margin:0;padding:0}
 .arow:first-child{border-top:0}
 .arow.is-taken .txt>span:first-child{color:var(--ink)}
 .free{color:var(--ok)!important;font-weight:600}
+.who{display:block;margin-top:3px;font-size:.9rem;color:var(--ribbon-deep)}
+.who b{color:var(--ink);font-weight:700}
+.arow.is-taken{background:#f3f7fc;border-radius:12px;padding-inline:8px}
 .muted{color:var(--ink-soft);margin:6px 0 10px}
 </style>
 
@@ -206,16 +210,15 @@ async function rpc(fn,body){
   return r.json();
 }
 const $=id=>document.getElementById(id);
-let pin="";try{pin=localStorage.getItem("bs-admin-pin")||""}catch(e){}
-let claims=[], view="person";
+let pin="OSITO-FPYGP2", loadErr=false;
+let claims=[], view="cat";
 
 async function load(silent){
-  if(!pin){showGate();return}
   let res;
   try{res=await rpc("admin_get_gift_claims",{p_event:EVENT,p_pin:pin})}
-  catch(e){if(!silent)$("body").innerHTML=`<div class="notice">No pudimos cargar los datos. Revisa tu conexión y toca Actualizar.</div>`;return}
-  if(!res.ok){try{localStorage.removeItem("bs-admin-pin")}catch(e){}pin="";showGate("Ese código no es correcto.");return}
-  claims=res.claims||[];$("gate").hidden=true;render();
+  catch(e){loadErr=true;render();return}
+  if(!res.ok){loadErr=true;render();return}
+  loadErr=false;claims=res.claims||[];render();
 }
 function showGate(msg){
   $("gate").hidden=false;$("body").innerHTML="";
@@ -237,8 +240,8 @@ function render(){
   const names=Object.keys(people).sort((a,b)=>a.localeCompare(b,"es"));
   const label=i=>`${i.num}. ${esc(i.name)}${i.sub?` · ${i.sub}`:""}`;
   const rel=i=>`<button class="linkbtn" type="button" data-release="${i.id}">Liberar</button>`;
-  let h=`<div class="stats"><div class="stat"><b>${takenItems.length}</b><span>Apartados</span></div><div class="stat"><b>${free.length}</b><span>Disponibles</span></div><div class="stat"><b>${names.length}</b><span>Invitados</span></div></div>`;
-  h+=`<div class="tabs" role="tablist"><button type="button" class="tab" aria-selected="${view==="person"}" data-view="person">Por invitado</button><button type="button" class="tab" aria-selected="${view==="cat"}" data-view="cat">Por categoría</button><button type="button" class="tab ghost" id="refresh">Actualizar</button></div>`;
+  let h=(loadErr?`<div class="notice">Todavía no se pudieron cargar los nombres. Abre esta página desde tu enlace de internet (no desde la vista previa) y toca Actualizar.</div>`:"")+`<div class="stats"><div class="stat"><b>${takenItems.length}</b><span>Apartados</span></div><div class="stat"><b>${free.length}</b><span>Disponibles</span></div><div class="stat"><b>${names.length}</b><span>Invitados</span></div></div>`;
+  h+=`<div class="tabs" role="tablist"><button type="button" class="tab" aria-selected="${view==="cat"}" data-view="cat">Lista completa</button><button type="button" class="tab" aria-selected="${view==="person"}" data-view="person">Por invitado</button><button type="button" class="tab ghost" id="refresh">Actualizar</button></div>`;
   if(view==="person"){
     h+=`<section class="cat"><img class="deco" src="${IMG.crown}" alt=""><header><h3>Quién regala qué</h3></header>`;
     if(!names.length)h+=`<p class="muted">Todavía nadie ha elegido. Cuando un invitado confirme, aparecerá aquí con sus regalos.</p>`;
@@ -251,11 +254,10 @@ function render(){
     CATS.forEach((c,ci)=>{
       h+=`<section class="cat"><img class="deco" src="${IMG[c.deco]}" alt=""><header><span class="n">${ci+1}</span><h3>${c.t}</h3></header><ul>`;
       ALL.filter(i=>i.cat===ci).forEach(i=>{const cl=byItem[i.id];
-        h+=`<li class="arow ${cl?"is-taken":""}"><span class="num">${i.num}</span><span class="txt"><span>${esc(i.name)}</span>${i.sub?`<small>${i.sub}</small>`:""}${cl?`<span class="chip">♡ ${esc(cl.guest_name||"Sin nombre")} · ${fmt(cl.created_at)}</span>`:`<small class="free">Disponible</small>`}</span>${cl?rel(i):""}</li>`});
+        h+=`<li class="arow ${cl?"is-taken":""}"><span class="num">${i.num}</span><span class="txt"><span>${esc(i.name)}</span>${i.sub?`<small>${i.sub}</small>`:""}${cl?`<span class="who">Lo eligió: <b>${esc(cl.guest_name||"Sin nombre")}</b></span><small>${fmt(cl.created_at)}</small>`:`<small class="free">Disponible</small>`}</span>${cl?rel(i):""}</li>`});
       h+=`</ul></section>`;
     });
   }
-  h+=`<p class="switch"><button type="button" class="linkbtn" id="logout">Salir</button></p>`;
   $("body").innerHTML=h;
 }
 document.addEventListener("click",async e=>{
@@ -268,7 +270,7 @@ document.addEventListener("click",async e=>{
   try{const res=await rpc("admin_release_gift",{p_event:EVENT,p_pin:pin,p_item_id:r.dataset.release});if(!res.ok)throw 0;await load()}
   catch(x){r.textContent="No se pudo, intenta otra vez";r.dataset.confirm=""}
 });
-load();setInterval(()=>load(true),20000);
+render();load();setInterval(()=>load(true),20000);
 </script>
 </body>
 </html>
